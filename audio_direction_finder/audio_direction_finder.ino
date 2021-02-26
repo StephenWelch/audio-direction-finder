@@ -26,7 +26,7 @@ void setup() {
   // Set CTC (Clear timer on compare) mode
   TCCR1A |= (1 << WGM01);
   // Set prescaler
-  TCCR1B |= (1 << CS01) | (1 << CS00);   
+  TCCR1B |= (1 << CS11) | (1 << CS10);   
   // Enable timer compare interrupt
   TIMSK1 |= (1 << OCIE0A);
   
