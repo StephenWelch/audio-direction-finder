@@ -35,7 +35,7 @@ void loop() {
   float phase_shift = abs(left_time - right_time);
   float calculated_angle = calculateAngle(phase_shift);
   Serial.print("Phase shift:");
-  Serial.print(phase_shift_sec);
+  Serial.print(phase_shift);
   Serial.print("Calculated Angle:");
   Serial.print(calculated_angle);
 }
