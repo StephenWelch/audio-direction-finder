@@ -1,0 +1,4 @@
+{
+    "sketch": "audio_direction_finder\\audio_direction_finder.ino",
+    "board": "arduino:avr:uno"
+}

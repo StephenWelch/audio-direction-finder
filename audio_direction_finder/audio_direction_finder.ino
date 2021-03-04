@@ -1,16 +1,14 @@
-#include <TimerOne.h>
+#include <math.h>
 
-const int SAMPLE_PERIOD_US = 10000;
-const int LEFT_MIC = A0;
-const int RIGHT_MIC = A1;
-const float threshold_voltage = 0; // Placeholder value - depends on final circuit design
+const int LEFT_MIC = 2;
+const int RIGHT_MIC = 3;
+const unsigned long SPEED_OF_SOUND = 343 / pow(10, 9); // Speed of sound in microseconds
+const double MIC_DIST = 1.0; // Distance between microphones in meters
 
-// Store past voltage values so we can detect when a measurement has crossed a threshold
-float last_left_voltage, last_right_voltage;
 // For measuring phase shift
-unsigned long left_time, right_time;
+volatile unsigned long left_time, right_time;
 // For profiling execution times
-unsigned long curr_ts, last_ts, latest_ts_delta;
+volatile unsigned long curr_ts, last_ts, latest_ts_delta;
 
 // Interpolates a parameter based on its possible range of values and a desired range of values
 // This is a float-based analogue to the map() function provided by the Arduino standard library
@@ -21,9 +19,9 @@ float map_float(float value, float from_low, float from_high, float to_low, floa
 void setup() {
   // Disable interrupts while we perform hardware setup
   noInterrupts();
-  Timer1.initialize(SAMPLE_PERIOD_US);
-  // Attaches a function to be called at the configured interval
-  Timer1.attachInterrupt(testSample);
+  // Setup interrupts to trigger on rising edge of input signal
+  attachInterrupt(digitalPinToInterrupt(LEFT_MIC), leftMicIsr, RISING);
+  attachInterrupt(digitalPinToInterrupt(RIGHT_MIC), rightMicIsr, RISING);
 
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -34,43 +32,23 @@ void setup() {
 
 void loop() {
   // Empty for now - non-time-sensitive processing will eventually go here
+  float phase_shift = abs(left_time - right_time);
+  float calculated_angle = calculateAngle(phase_shift);
+  Serial.print("Phase shift:");
+  Serial.print(phase_shift_sec);
+  Serial.print("Calculated Angle:");
+  Serial.print(calculated_angle);
 }
 
-void samplePhaseShift() {
-  curr_ts = micros();
-
-  // Read voltage from analog inputs and convert from integer value to 0-5V
-  float left_voltage = map_float(analogRead(LEFT_MIC); , 0, 1023, 0, 5);
-  float right_voltage = map_float(analogRead(RIGHT_MIC); , 0, 1023, 0, 5);
-
-  // Note the time at which the signal was sampled is used instead of micros()
-  if (left_voltage < threshold_voltage && !(last_left_voltage < threshold_voltage)) {
-    left_time = curr_ts;
-  }
-
-  if (right_voltage < threshold_voltage && !(last_right_voltage < threshold_voltage)) {
-    right_time = curr_ts;
-  }
-  
-  float phase_shift_sec = abs(left_time - right_time) / 1000000.0;
-
-  last_left_voltage = left_voltage;
-  last_right_voltage = right_voltage;
-  last_ts = curr_ts;
+void leftMicIsr() {
+  left_time = micros();
 }
 
-void testSample()
-{
-  curr_ts = micros();
-  int left_voltage_raw = analogRead(LEFT_MIC);
-  float left_voltage = map_float(left_voltage_raw, 0, 1023, 0, 5);
-  //  latest_voltage = left_voltage;
-  latest_ts_delta = curr_ts - last_ts;
+void rightMicIsr() {
+  right_time = micros();
+}
 
-  // For testing purposes only
-  Serial.print(left_voltage);
-  Serial.print(" ");
-  Serial.print(latest_ts_delta);
-  Serial.println();
-  last_ts = curr_ts;
+// Method stub - calculates angle based on phase shift
+float calculateAngle(float phase_shift) {
+  return -atan2(phase_shift * SPEED_OF_SOUND, MIC_DIST);
 }
