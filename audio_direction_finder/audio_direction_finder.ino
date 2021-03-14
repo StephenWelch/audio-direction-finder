@@ -20,6 +20,10 @@ volatile unsigned long left_time, right_time;
 // For profiling execution times
 volatile unsigned long curr_ts, last_ts, latest_ts_delta;
 
+typedef struct coord {
+  double x, y;
+} coord_t;
+
 // Interpolates a parameter based on its possible range of values and a desired range of values
 // This is a float-based analogue to the map() function provided by the Arduino standard library
 float map_float(float value, float from_low, float from_high, float to_low, float to_high) {
@@ -58,9 +62,7 @@ void loop() {
 
   display.clearDisplay();
   display.setCursor(20,20);
-  display.print("Angle: ");
-  display.print(millis() / 500);
-  display.drawCircle(display.getCursorX() + 3, display.getCursorY(), 2, 1);
+  displayAngleOled(millis() / 500);
   display.display();
 //  Serial.print("Phase shift:");
 //  Serial.print(phase_shift);
@@ -79,4 +81,14 @@ void rightMicIsr() {
 // Method stub - calculates angle based on phase shift
 float calculateAngle(float phase_shift) {
   return -atan2(phase_shift * SPEED_OF_SOUND, MIC_DIST);
+}
+
+void displayAngleOled(double angle) {
+  display.print("Angle: ");
+  display.print(angle);
+  display.drawCircle(display.getCursorX() + 3, display.getCursorY(), 2, 1);
+}
+
+coord_t rotatePoint(coord_t point, double angle) {
+  return {point.x * cos(angle) - point.y * sin(angle), point.x * sin(angle) + point.y * cos(angle)};
 }
