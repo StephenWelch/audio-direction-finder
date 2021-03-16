@@ -16,13 +16,46 @@ ArducamSSD1306 display(OLED_RESET_PIN);
 // Variables shared between ISRs and the main loop go here
 // These must be marked volatile so that they aren't optimized out by the compiler
 // For measuring phase shift
-volatile unsigned long left_time, right_time;
+volatile unsigned long left_time, right_time, last_left_time, last_right_time, phase_shift;
+volatile bool recalc = false;
 // For profiling execution times
-volatile unsigned long curr_ts, last_ts, latest_ts_delta;
+//volatile unsigned long curr_ts, last_ts, latest_ts_delta;
 
 typedef struct coord {
   double x, y;
+
+  coord operator+(const coord &other) {
+    return {x + other.x, y + other.y};
+  }
+
+  coord operator-(const coord &other) {
+    return {x - other.x, y - other.y};
+  }
+
+  coord operator-() {
+    return {-x, -y};
+  }
+
+  coord operator*(float scalar) {
+    return {x * scalar, y * scalar};
+  }
+
+  coord rotate(double angle) {
+    return {x * cos(angle) - y * sin(angle), x * sin(angle) + y * cos(angle)};
+  }
+  
+  coord rotate(const coord &origin, double angle) {
+    return (*this - origin).rotate(angle) + origin;
+  }
+  
 } coord_t;
+
+coord_t line_start = {64, 32};
+coord_t line_end = {64, 64};
+coord_t arrow_head_l_end = line_start + (coord_t){-8, 8};
+coord_t arrow_head_r_end = line_start + (coord_t){8, 8};
+
+coord_t origin = {64, 48};
 
 // Interpolates a parameter based on its possible range of values and a desired range of values
 // This is a float-based analogue to the map() function provided by the Arduino standard library
@@ -52,30 +85,51 @@ void setup() {
   // Setup is finished - reenable interrupts
   interrupts();
 
-  display.clearDisplay();
+//  display.clearDisplay();
 }
 
 void loop() {
   // Empty for now - non-time-sensitive processing will eventually go here
-  float phase_shift = abs(left_time - right_time);
-  float calculated_angle = calculateAngle(phase_shift);
-
+//  float calculated_angle = calculateAngle(phase_shift);
+  float calculated_angle = millis() / 250;  
   display.clearDisplay();
   display.setCursor(20,20);
-  displayAngleOled(millis() / 500);
+  displayAngleOled(calculated_angle);
+  display.setCursor(64, 64);
+
+  float calculated_angle_rad = calculated_angle * PI / 180.0;
+  displayLineOled(line_start.rotate(origin, animTime), line_end.rotate(origin, calculated_angle_rad), WHITE);
+  displayLineOled(line_start.rotate(origin, animTime), arrow_head_l_end.rotate(origin, calculated_angle_rad), WHITE);
+  displayLineOled(line_start.rotate(origin, animTime), arrow_head_r_end.rotate(origin, calculated_angle_rad), WHITE);
   display.display();
-//  Serial.print("Phase shift:");
-//  Serial.print(phase_shift);
-//  Serial.print("Calculated Angle:");
-//  Serial.print(calculated_angle);
+//  if(recalc) {
+//    phase_shift = abs((float)left_time - right_time);
+//    Serial.print("Phase shift:");
+//    Serial.print(phase_shift);
+//    Serial.print(" ");
+//    Serial.print("Left Period:");
+//    Serial.print(abs((float)left_time - last_left_time));
+//    Serial.print(" ");
+//    Serial.print("Right Period:");
+//    Serial.print(abs((float)right_time - last_right_time));
+//  //  Serial.print("Calculated Angle:");
+//  //  Serial.print(calculated_angle);
+//    Serial.println();
+//    recalc = false;
+//  }
+
 }
 
 void leftMicIsr() {
+  last_left_time = left_time;
   left_time = micros();
+  recalc = true;
 }
 
 void rightMicIsr() {
+  last_right_time = right_time;
   right_time = micros();
+  recalc = true;
 }
 
 // Method stub - calculates angle based on phase shift
@@ -89,6 +143,6 @@ void displayAngleOled(double angle) {
   display.drawCircle(display.getCursorX() + 3, display.getCursorY(), 2, 1);
 }
 
-coord_t rotatePoint(coord_t point, double angle) {
-  return {point.x * cos(angle) - point.y * sin(angle), point.x * sin(angle) + point.y * cos(angle)};
+void displayLineOled(coord_t start, coord_t end, uint16_t color) {
+  display.drawLine(start.x, start.y, end.x, end.y, WHITE);
 }
