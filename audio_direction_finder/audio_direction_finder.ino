@@ -98,9 +98,9 @@ void loop() {
   display.setCursor(64, 64);
 
   float calculated_angle_rad = calculated_angle * PI / 180.0;
-  displayLineOled(line_start.rotate(origin, animTime), line_end.rotate(origin, calculated_angle_rad), WHITE);
-  displayLineOled(line_start.rotate(origin, animTime), arrow_head_l_end.rotate(origin, calculated_angle_rad), WHITE);
-  displayLineOled(line_start.rotate(origin, animTime), arrow_head_r_end.rotate(origin, calculated_angle_rad), WHITE);
+  displayLineOled(line_start.rotate(origin, calculated_angle_rad), line_end.rotate(origin, calculated_angle_rad), WHITE);
+  displayLineOled(line_start.rotate(origin, calculated_angle_rad), arrow_head_l_end.rotate(origin, calculated_angle_rad), WHITE);
+  displayLineOled(line_start.rotate(origin, calculated_angle_rad), arrow_head_r_end.rotate(origin, calculated_angle_rad), WHITE);
   display.display();
 //  if(recalc) {
 //    phase_shift = abs((float)left_time - right_time);
