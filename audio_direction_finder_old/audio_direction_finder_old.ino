@@ -40,8 +40,8 @@ void samplePhaseShift() {
   curr_ts = micros();
 
   // Read voltage from analog inputs and convert from integer value to 0-5V
-  float left_voltage = map_float(analogRead(LEFT_MIC); , 0, 1023, 0, 5);
-  float right_voltage = map_float(analogRead(RIGHT_MIC); , 0, 1023, 0, 5);
+  float left_voltage = map_float(analogRead(LEFT_MIC), 0, 1023, 0, 5);
+  float right_voltage = map_float(analogRead(RIGHT_MIC), 0, 1023, 0, 5);
 
   // Note the time at which the signal was sampled is used instead of micros()
   if (left_voltage < threshold_voltage && !(last_left_voltage < threshold_voltage)) {
