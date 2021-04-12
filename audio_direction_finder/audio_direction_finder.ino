@@ -119,7 +119,7 @@ struct circular_buf {
 // Variables shared between ISRs and the main loop go here
 // These must be marked volatile so that they aren't optimized out by the compiler
 volatile unsigned long last_left_peak, last_right_peak;
-volatile int last_left_val, last_right_val;
+volatile timestamped_val last_left, last_right;
 volatile bool recalc = false;
 volatile unsigned long curr_ts, last_ts, latest_ts_delta;
 volatile unsigned long leftRising, leftFalling, rightRising, rightFalling, leftPeak, rightPeak;
@@ -194,56 +194,73 @@ void loop() {
 
 void sampleIsr() {
   curr_ts = micros();
-
-  if(curr_ts - lastDumpTime >= 200000 && (leftReady || rightReady)) {
-    lastDumpTime = curr_ts;
-    
-    if(leftReady) {
-        leftReady = false;
-        Serial.print("\nleft_per:"); Serial.println(1.0 / ((float)(leftPeak - last_left_peak) / 1000000.0)); 
-    }
-    if(rightReady) {
-        rightReady = false;
-        Serial.print("right_per:"); Serial.println(1.0 / ((float)(rightPeak - last_right_peak) / 1000000.0)); 
-    }
-//    leftRising = 0;
-//    rightRising = 0;
-  }
+  bool dump = curr_ts - lastDumpTime >= 200000;
+  bool dumped = false;
 
   // Read voltage from analog inputs and convert from integer value to 0-5V
   int left_voltage = analogRead(LEFT_MIC);
   int right_voltage = analogRead(RIGHT_MIC);
 
-  if(last_left_val < 716 && left_voltage > 716) {
-    leftRising = curr_ts;
-  }
-
-  if(last_left_val > 716 && left_voltage < 716 && leftRising != 0) {
-    leftFalling = curr_ts;
-
-    leftPeak = (leftRising + leftFalling) / 2.0;
-//    Serial.print("left_per:"); Serial.println(1.0 / ((float)(leftPeak - last_left_peak) / 1000000.0)); 
-    leftRising = 0;
-    leftReady = true;
-    last_left_peak = leftPeak;
+  if(last_left.val != 0) {
+    if(last_left.val < 716 && left_voltage > 716) {
+      leftRising = (curr_ts + last_left.ts) / 2;
+    }
+  
+    if(last_left.val > 716 && left_voltage < 716 && leftRising != 0) {
+      leftFalling = (curr_ts + last_left.ts) / 2;
+  
+      leftPeak = (leftRising + leftFalling) / 2.0;
+      if(dump) {
+        dumped = true;
+        if(last_left_peak != 0) {
+          Serial.print("left_per:"); Serial.println(1.0 / ((float)(leftPeak - last_left_peak) / 1000000.0)); 
+  //          Serial.println(fmod(360.0 * (abs_sub(leftPeak, rightPeak) / 1000000.0) * 1000.0, 360.0)); 
+  //          Serial.println(abs_sub(leftPeak, rightPeak));
+        }
+        last_left_peak = 0;
+        last_left = {0, 0};
+      } else {
+        last_left_peak = leftPeak;
+      }
+      leftRising = 0;
+      leftReady = true;
+    }
   }
   
-  if(last_right_val < 716 && right_voltage > 716) {
-    rightRising = curr_ts;
+  
+  if(last_right.val != 0) {
+    if(last_right.val < 716 && right_voltage > 716) {
+      rightRising = (curr_ts + last_right.ts) / 2;
+    }
+  
+    if(last_right.val > 716 && right_voltage < 716 && rightRising != 0) {
+      rightFalling = (curr_ts + last_right.ts) / 2;
+  
+      rightPeak = (rightRising + rightFalling) / 2.0;
+      if(dump) {
+        dumped = true;
+        if(last_right_peak != 0) {
+          Serial.print("right_per:"); Serial.println(1.0 / ((float)(rightPeak - last_right_peak) / 1000000.0)); 
+  //          Serial.println(fmod(360.0 * (abs_sub(leftPeak, rightPeak) / 1000000.0) * 1000.0, 360));
+  //          Serial.println(abs_sub(leftPeak, rightPeak));
+        }
+        last_right_peak = 0;
+        last_right = {0, 0};
+      } else {
+        last_right_peak = rightPeak;
+      }
+      rightRising = 0;
+      rightReady = true;
+    }
+  }
+  
+
+  if(dumped) {
+    lastDumpTime = curr_ts;
   }
 
-  if(last_right_val > 716 && right_voltage < 716 && rightRising != 0) {
-    rightFalling = curr_ts;
-
-    rightPeak = (rightRising + rightFalling) / 2.0;
-//    Serial.print("right_per:"); Serial.println(1.0 / ((float)(rightPeak - last_right_peak) / 1000000.0)); 
-    rightRising = 0;
-    rightReady = true;
-    last_right_peak = rightPeak;
-  }
-
-  last_left_val = left_voltage;
-  last_right_val = right_voltage;
+  last_left = {left_voltage, curr_ts};
+  last_right = {right_voltage, curr_ts};
 
 //  unsigned long diff = 0;
 //  if(leftPeak != 0 && rightPeak != 0) {
@@ -294,7 +311,14 @@ constexpr int map_voltage(float value) {
   return map_float(value, 0, 5, 0, 1023);
 }
 
-
-bool isNear(float a, float b, float thresh) {
+bool is_near(float a, float b, float thresh) {
   return abs(a - b) <= thresh;
+}
+
+unsigned long abs_sub(unsigned long a, unsigned long b) {
+  if(a > b) {
+    return a - b;
+  } else {
+    return b - a;
+  }
 }
