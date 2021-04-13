@@ -24,7 +24,9 @@ const int OLED_RESET_PIN = 16;
 const int OLED_ADDR = 0x78;
 const int LEFT_MIC = A0;
 const int RIGHT_MIC = A1;
-const unsigned long SPEED_OF_SOUND = 343 / pow(10, 9); // Speed of sound in microseconds
+const double MIC_DIST_M = 0.1;
+const double SPEED_OF_SOUND = 343; // Speed of sound in microseconds
+const double MAX_PHASE_SHIFT = MIC_DIST_M / SPEED_OF_SOUND;
 
 ////////////////////
 // TYPE DECLARATIONS
@@ -91,7 +93,10 @@ void loop() {
       double right_peak_sec = right_peak.ts / 1000000.0;
 //      unsigned long dt = abs_sub(left_peak.ts, right_peak.ts);
       double dt = right_peak_sec - left_peak_sec;
-      Serial.println(dt, 6);
+      if(dt > 0.000500) dt -= 0.001000; 
+      Serial.print("dt:");Serial.print(dt, 6);Serial.print(" ");
+      Serial.print("dist:");Serial.print(dt * SPEED_OF_SOUND);Serial.print(" ");
+      Serial.print("angle:");Serial.print(calculate_angle(dt));Serial.println();
 //      double dt_sec = abs_sub(left_peak.ts, right_peak.ts) / 1000000.0;
 //    Serial.println(360.0 * 1000.0 * dt_sec, 5);
     
@@ -123,7 +128,11 @@ void reset_buffer(timestamped_val *buf) {
 ////////
 // Utils
 ////////
-float map_float(float value, float from_low, float from_high, float to_low, float to_high) {
+float calculate_angle(double phase_shift_secs) {
+  return degrees(acos(phase_shift_secs * SPEED_OF_SOUND / MIC_DIST_M));
+}
+
+double map_float(double value, double from_low, double from_high, double to_low, double to_high) {
   return (value - from_low) * (to_high - to_low) / (from_high - from_low) + to_low;
 }
 
