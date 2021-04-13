@@ -5,8 +5,8 @@
 
 #include <math.h>
 
-#define SAMPLE_PERIOD_US 450
-#define BUF_SIZE 10
+#define SAMPLE_PERIOD_US 50
+#define BUF_SZ 100
 
 // defines for setting and clearing register bits
 #ifndef cbi
@@ -15,6 +15,7 @@
 #ifndef sbi
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 #endif
+
 
 ////////////
 // CONSTANTS
@@ -29,10 +30,10 @@ const unsigned long SPEED_OF_SOUND = 343 / pow(10, 9); // Speed of sound in micr
 // TYPE DECLARATIONS
 ////////////////////
 
-struct timestamped_val {
-  unsigned long val;
+typedef struct timestamped_val {
+  int val;
   unsigned long ts;
-};
+} timestamped_val;
 
 ////////////////////////
 // VARIABLE DECLARATIONS
@@ -49,73 +50,74 @@ void setup() {
   sbi(ADCSRA,ADPS2);
   cbi(ADCSRA,ADPS1);
   cbi(ADCSRA,ADPS0);
-  analogReadResolution(7);
+
   Serial.begin(2000000);
 }
 
-volatile timestamped_val left[4];
-volatile timestamped_val right[4];
-volatile int fill_count;
-volatile timestamped_val left_peak, right_peak;
-volatile timestamped_val last_left_peak, last_right_peak;
+timestamped_val left[BUF_SZ];
+timestamped_val right[BUF_SZ];
+int fill_count;
 
-volatile unsigned long last_print_time, last_sample_time;
+unsigned long last_print_time, last_sample_time;
 
 void loop() {
   unsigned long curr_ts = micros();
 
-//  if(curr_ts - last_print_time >= 200000) {
-//    last_print_time = curr_ts;
-////    unsigned long dt = abs_sub(left_peak.ts, right_peak.ts);
-////    if(left_peak.val != 0 && right_peak.val != 0) {
-////      Serial.println(left_peak.ts - last_left_peak.ts);
-//////      Serial.println(fmod(360.0 * 1000.0 * abs_sub(left_peak.ts, right_peak.ts) / 1000000.0, 360));
-////      last_left_peak.ts = left_peak.ts;
-////      last_right_peak.ts = right_peak.ts;
-////    }
-////    reset_buffer(left);
-////    reset_buffer(right);
-//  } else 
-//  if(curr_ts - last_sample_time >= 25) {
-//    last_sample_time = curr_ts;
-    unsigned long sample_start = micros();
+  if(fill_count >= BUF_SZ) {
+//      Serial.print("left:");Serial.print(left[i].val);Serial.print(" ");
+//      Serial.print("right:");Serial.print(right[i].val);Serial.println();
+    
+    last_print_time = curr_ts;
+
+    timestamped_val left_peak = {0, 0};
+    timestamped_val right_peak = {0, 0};
+    int i = 0;
+    while(!is_near(left[i].val, v_to_s(5.0), v_to_s(0.05))) {
+      i++;
+    }
+    left_peak = left[i];
+    while(!is_near(right[i].val, v_to_s(5.0), v_to_s(0.05))) {
+      i++;
+    }
+    right_peak = right[i];
+
+//    Serial.print("left peak:");
+//    Serial.println(left_peak.val);
+//    Serial.println(left_peak.ts);
+//    Serial.print("right peak:");
+//    Serial.println(right_peak.val);
+//    Serial.println(right_peak.ts);
+      double left_peak_sec = left_peak.ts / 1000000.0;
+      double right_peak_sec = right_peak.ts / 1000000.0;
+//      unsigned long dt = abs_sub(left_peak.ts, right_peak.ts);
+      double dt = right_peak_sec - left_peak_sec;
+      Serial.println(dt, 6);
+//      double dt_sec = abs_sub(left_peak.ts, right_peak.ts) / 1000000.0;
+//    Serial.println(360.0 * 1000.0 * dt_sec, 5);
+    
+    reset_buffer(left);
+    reset_buffer(right);
+    
+  } else if(curr_ts - last_sample_time >= SAMPLE_PERIOD_US) {
+    last_sample_time = curr_ts;
+    
     int left_voltage = analogRead(LEFT_MIC);
     int right_voltage = analogRead(RIGHT_MIC);
-    Serial.println(micros() - sample_start);
-//    update_buffer(left, {left_voltage, curr_ts});
-//    update_buffer(right, {right_voltage, curr_ts});
-//    fill_count++;
-//
-//    if(fill_count >= 4) {
-//      timestamped_val new_left_peak = detect_peak(left);
-//      timestamped_val new_right_peak = detect_peak(right);
-//      
-//      if(new_left_peak.val != 0) left_peak = new_left_peak;
-//      if(new_right_peak.val != 0) right_peak = new_right_peak;
-//    }
-//  }
+    
+    left[fill_count] = {left_voltage, curr_ts};
+    right[fill_count] = {right_voltage, curr_ts};
+    fill_count++;
+    
+//    unsigned long sample_end_ts = micros();
+//    Serial.print("sample dt:");
+//    Serial.println(sample_end_ts - curr_ts);
+  }
   
 }
 
 void reset_buffer(timestamped_val *buf) {
-  for(int i = 0; i < 4; i++) buf[i] = {0, 0};
+  for(int i = 0; i < BUF_SZ; i++) buf[i] = {0, 0};
   fill_count = 0;
-}
-
-void update_buffer(timestamped_val *buf, const timestamped_val &sample) {
-  buf[3] = buf[2];
-  buf[2] = buf[1];
-  buf[1] = buf[0];
-  buf[0] = sample;
-}
-
-timestamped_val detect_peak(timestamped_val *buf) {
-  for(int i = 2; i < 4; i++) {
-    if(buf[i-2].val < buf[i-1].val && buf[i].val < buf[i-1].val) {
-      return buf[i-1];
-    }
-  }
-  return {0, 0};
 }
 
 ////////
@@ -125,11 +127,11 @@ float map_float(float value, float from_low, float from_high, float to_low, floa
   return (value - from_low) * (to_high - to_low) / (from_high - from_low) + to_low;
 }
 
-float map_reading(int value) {
+float s_to_v(int value) {
   return map_float(value, 0, 1023, 0, 5);
 }
 
-int map_voltage(float value) {
+int v_to_s(float value) {
   return map_float(value, 0, 5, 0, 1023);
 }
 
